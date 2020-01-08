@@ -158,6 +158,7 @@ yum install createrepo
 createrepo /repo/<repo_name>
 createrepo /repo/<repo_name>
 createrepo -g comps.xml local-base/
+createrepo -g comps.xml local-epel/
 
 ### setup nginx
 yum install nginx
@@ -179,5 +180,15 @@ server {
 }
 
 ```
+#### allow for remote access
+sudo firewall-cmd --add-port=8008/tcp --permanent
+sudo firewall-cmd --reload
+sudo chcon -R -u system_u -t httpd_sys_content_t repos/
+curl <ip>:8008
+
+### setuo dns
+pfsense > services > dns resolver > host over ride
+or
+/etc/hosts
 
 ### spanning and tapping

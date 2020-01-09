@@ -48,11 +48,13 @@ reclaim space
   - var 10g - os
   - var/log 2g - os
   - tmp 2 g - os
-  - data/suricata 1g - data
-  - data/elasticsearch 1g - data
-  - data/steno 1g - data
-  - data/kafka 1g - data
-  - data/fsf 1g - data
+  - data/suricata 50g - data
+  - data/elasticsearch 50g - data
+  - data/steno 50g - data
+  - data/kafka 50g - data
+  - data/fsf 50g - data
+#### enable interfaces
+networking > enable an interface
 
 ### switch port
 9
@@ -180,6 +182,22 @@ server {
 }
 
 ```
+#### reverse proxy
+```.configure
+server {
+  listen 80;
+  server_name sg301 sg301.local.lan
+
+  proxy_max_temp_file_size 0;
+
+  location / {
+    proxy_set_header X-Real_IP $remote_addr;
+    proxy_set_header Host $http_host;
+    proxy_pass http://127.0.0.1:8008;
+  }
+}
+```
+
 #### allow for remote access
 sudo firewall-cmd --add-port=8008/tcp --permanent
 sudo firewall-cmd --reload
@@ -191,4 +209,163 @@ pfsense > services > dns resolver > host over ride
 or
 /etc/hosts
 
-### spanning and tapping
+### more space
+mkdir /home/srv
+mv /srv/* /home/srv/.
+mount -o bind /home/srv/ /srv/
+
+
+### stenographer
+sudo yum install stenographer
+#### config files
+/etc/stenographer/config
+```.config
+{
+  "Threads": [
+    { "PacketsDirectory": "/data/steno/thread0/packets/"
+    , "IndexDirectory": "/data/steno/thread0/index/"
+    , "MaxDirectoryFiles": 30000
+    , "DiskFreePercentage": 10
+    }
+  ]
+  , "StenotypePath": "/usr/bin/stenotype"
+  , "Interface": "enp2s0"
+  , "Port": 1234
+  , "Host": "127.0.0.1"
+  , "Flags": []
+  , "CertPath": "/etc/stenographer/certs"
+}
+```
+(change "PacketsDirectory": to the: to the data/steno/thread0....... we make when installing centos)
+
+(change "interface": enp2s0 ( inet ........)
+
+    stenokeys.sh stenographer stenographer
+
+    ll /data/
+
+    chown -R stenographer: /data/steno/
+
+    systemctl start stenographer
+
+    systemctl status stenographer (make sure stenographer is running)
+
+###     Troubleshooting step
+
+    journalctl -xew stenographer (look for exit)
+
+    ll /etc/stenographer/cert  (look for certificate gernerated, will be empty if no cert)
+
+
+
+  Stop steno
+
+    systemctl stop stenographer
+
+##     ethtool
+
+
+  Manually run ethtool
+
+    ethtool -K enp2s0 tso off gro  off lro off  gso off rx off tx  off sg off rxvlan off txvlan off
+
+    ethtool -N enp2s0 rx-flow-hash udp4 sdfn
+
+    ethtool -N enp2s0 rx-flow-hash udp6 sdfn
+
+    ethtool -C enp2s0 adaptive-rx off
+
+    ethtool -C  enp2s0 rx-usecs 1000
+
+    ethtool -G enp2s0 rx 4096
+
+
+
+
+    script version
+
+    #!/bin/bash
+
+
+    for var in $@
+    do
+
+    echo "turning off affloading on $var"
+
+    ethtool -K  $var tso off gro  off lro off  gso off rx off tx  off sg off rxvlan off txvlan off
+
+    ethtool -N  $var rx-flow-hash udp4 sdfn
+
+    ethtool -N  $var rx-flow-hash udp6 sdfn
+
+    ethtool -C $var adaptive-rx off
+
+    ethtool -C $var rx-usecs 1000
+
+    ethtool -G $var rx 4096
+
+    done
+
+    exit 0
+
+
+##     Install Suricata
+
+
+    yum install suricata
+
+    yum install tcpdump
+
+    tcpdump -i enp2s0
+
+    vi /etc/suricata/suricata.yaml
+
+    :set nu
+
+
+    line 76   enabled: no
+
+    line 404 enabled: no
+
+
+    /enabled:yes (for search in vi)
+
+    default-log-dir  ( change to location)
+
+    outputs
+
+    rule-files
+
+
+    cd /etc/suricata
+
+
+    cd /var/lib/suricata/rules
+
+    suricata-update
+
+    usr/share/local/suricata/rules
+
+    /var/lib/suricata/rules
+
+    vi /etc/sysconfig/suricata
+
+
+    sudo cat /proc/cpuinfo | egrep -e 'processor|physical id|core id' | xargs -l3
+
+
+
+    cd /usr/share/suricata/rules/  ( copy link from share site )
+
+    curl -L -O https://192.168.2.11:8009/suricata-5.0/emerging.rules.tar.gz
+
+    ls
+
+
+
+
+
+    cp /usr/share/suricata/classification.config  /etc/suricata/.
+
+
+    cp /usr/share/suricata/reference.config  /etc/suricata/.

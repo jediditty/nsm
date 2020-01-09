@@ -352,13 +352,13 @@ sudo yum install stenographer
 
     ```
     # The following parameters are the most commonly needed to configure
-# suricata. A full list can be seen by running /sbin/suricata --help
-# -i <network interface device>
-# --user <acct name>
-# --group <group name>
+    # suricata. A full list can be seen by running /sbin/suricata --help
+    # -i <network interface device>
+    # --user <acct name>
+    # --group <group name>
 
-# Add options to be passed to the daemon
-OPTIONS="--af-packet=enp2s0 --user suricata "
+    # Add options to be passed to the daemon
+    OPTIONS="--af-packet=enp2s0 --user suricata "
     ```
 
 

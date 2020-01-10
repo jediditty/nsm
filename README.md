@@ -154,7 +154,8 @@ reposync -l --repoid=local-updates --download_path=/srv/repos/ --newest-only --d
 reposync -l --repoid=local-zerotier --download_path=/srv/repos/ --newest-only --downloadcomps --download-metadata && \
 reposync -l --repoid=local-virtualbox --download_path=/srv/repos/ --newest-only --downloadcomps --download-metadata && \
 reposync -l --repoid=local-WANdisco-git --download_path=/srv/repos/ --newest-only --downloadcomps --download-metadata && \
-reposync -l --repoid=localstuff --download_path=/srv/repos/ --newest-only --downloadcomps --download-metadata
+reposync -l --repoid=localstuff --download_path=/srv/repos/ --newest-only --downloadcomps --download-metadata && \
+reposync -l --repoid=fsf --download_path=/srv/repos/ --newest-only --downloadcomps --download-metadata
 #### createrpo
 yum install createrepo
 createrepo /repo/<repo_name>
@@ -453,9 +454,72 @@ env_vars=fanout_id=99
     * @load scripts/json
     * @load scripts/af_packet
     * @load scripts/kafka
+
 #### create above scripts
 * mkdir scripts/
-* afpacket.sh
+* afpacket.zeek
 ```
 redef AF_Packet::fanout_id = strcmp(getenv("fanout_id"),"") == 0 ? 0 : to_count(getenv("fanout_id"));
 ```
+* kafka.zeek
+```
+redef Kafka::topic_name = "zeek-raw";
+redef Kafka::json_timestamps = JSON::TS_ISO8601;
+redef Kafka::tag_json = F;
+redef Kafka::kafka_conf = table(["metadata.broker.list"] = "172.16.30.102:9092");
+```
+* json.zeek
+```
+redef LogAscii::use_json=T;
+redef LogAscii::json_timestamps = JSON::TS_ISO8601;
+```
+* ```zeekctl check #ensures that the scripts are good to go```
+
+#### zeek trouable Troubleshooting
+* zeekctl stop
+* zeekctl cleanup all
+* zeekctl deploy
+
+### FSF
+* configuration updates
+* vi /opt/fsf/fsf-server/conf/config.py
+```.py
+#!/usr/bin/env python
+#
+# Basic configuration attributes for scanner. Used as default
+# unless the user overrides them.
+#
+
+import socket
+
+SCANNER_CONFIG = { 'LOG_PATH' : '/data/fsf/logs',
+                   'YARA_PATH' : '/var/lib/yara-rules/rules.yara',
+                   'PID_PATH' : '/run/fsf/scanner.pid',
+                   'EXPORT_PATH' : '/data/fsf/files',
+                   'TIMEOUT' : 60,
+                   'MAX_DEPTH' : 10,
+                   'ACTIVE_LOGGING_MODULES' : ['scan_log', 'rockout'],
+                   }
+
+SERVER_CONFIG = { 'IP_ADDRESS' : "172.16.2.102",
+                  'PORT' : 5800 }
+```
+
+* vi /opt/fsf/fsf-client/conf/config.py
+```.py
+#!/usr/bin/env python
+#
+# Basic configuration attributes for scanner client.
+#
+
+# 'IP Address' is a list. It can contain one element, or more.
+# If you put multiple FSF servers in, the one your client chooses will
+# be done at random. A rudimentary way to distribute tasks.
+SERVER_CONFIG = { 'IP_ADDRESS' : ['127.16.2.102',],
+                  'PORT' : 5800 }
+
+# Full path to debug file if run with --suppress-report
+CLIENT_CONFIG = { 'LOG_FILE' : '/tmp/client_dbg.log' }
+```
+* mkdir /data/fsf/{logs,file}
+* chown -R fsf: /data/fsf/

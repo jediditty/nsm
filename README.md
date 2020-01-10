@@ -198,6 +198,8 @@ server {
 }
 ```
 
+sudo systemctl enable nginx
+
 #### allow for remote access
 sudo firewall-cmd --add-port=8008/tcp --permanent
 sudo firewall-cmd --reload
@@ -214,7 +216,7 @@ mkdir /home/srv
 mv /srv/* /home/srv/.
 mount -o bind /home/srv/ /srv/
 
-
+## INstalling Rocknsm
 ### stenographer
 sudo yum install stenographer
 #### config files
@@ -240,143 +242,220 @@ sudo yum install stenographer
 
 (change "interface": enp2s0 ( inet ........)
 
-    stenokeys.sh stenographer stenographer
+stenokeys.sh stenographer stenographer
 
-    ll /data/
+ll /data/
 
-    chown -R stenographer: /data/steno/
+chown -R stenographer: /data/steno/
 
-    systemctl start stenographer
+systemctl start stenographer
 
-    systemctl status stenographer (make sure stenographer is running)
+systemctl status stenographer (make sure stenographer is running)
 
 ###     Troubleshooting step
 
-    journalctl -xew stenographer (look for exit)
+journalctl -xew stenographer (look for exit)
 
-    ll /etc/stenographer/cert  (look for certificate gernerated, will be empty if no cert)
+ll /etc/stenographer/cert  (look for certificate gernerated, will be empty if no cert)
 
 
 
-  Stop steno
+Stop steno
 
-    systemctl stop stenographer
+systemctl stop stenographer
 
 ##     ethtool
 
 
-  Manually run ethtool
+Manually run ethtool
 
-    ethtool -K enp2s0 tso off gro  off lro off  gso off rx off tx  off sg off rxvlan off txvlan off
+ethtool -K enp2s0 tso off gro  off lro off  gso off rx off tx  off sg off rxvlan off txvlan off
 
-    ethtool -N enp2s0 rx-flow-hash udp4 sdfn
+ethtool -N enp2s0 rx-flow-hash udp4 sdfn
 
-    ethtool -N enp2s0 rx-flow-hash udp6 sdfn
+ethtool -N enp2s0 rx-flow-hash udp6 sdfn
 
-    ethtool -C enp2s0 adaptive-rx off
+ethtool -C enp2s0 adaptive-rx off
 
-    ethtool -C  enp2s0 rx-usecs 1000
+ethtool -C  enp2s0 rx-usecs 1000
 
-    ethtool -G enp2s0 rx 4096
-
-
+ethtool -G enp2s0 rx 4096
 
 
-    script version
-
-    #!/bin/bash
 
 
-    for var in $@
-    do
+script version
 
-    echo "turning off affloading on $var"
+#!/bin/bash
 
-    ethtool -K  $var tso off gro  off lro off  gso off rx off tx  off sg off rxvlan off txvlan off
 
-    ethtool -N  $var rx-flow-hash udp4 sdfn
+for var in $@
+do
 
-    ethtool -N  $var rx-flow-hash udp6 sdfn
+echo "turning off affloading on $var"
 
-    ethtool -C $var adaptive-rx off
+ethtool -K  $var tso off gro  off lro off  gso off rx off tx  off sg off rxvlan off txvlan off
 
-    ethtool -C $var rx-usecs 1000
+ethtool -N  $var rx-flow-hash udp4 sdfn
 
-    ethtool -G $var rx 4096
+ethtool -N  $var rx-flow-hash udp6 sdfn
 
-    done
+ethtool -C $var adaptive-rx off
 
-    exit 0
+ethtool -C $var rx-usecs 1000
+
+ethtool -G $var rx 4096
+
+done
+
+exit 0
 
 
 ##     Install Suricata
 
 
-    yum install suricata
+yum install suricata
 
-    yum install tcpdump
+yum install tcpdump
 
-    tcpdump -i enp2s0
+tcpdump -i enp2s0
 
-    vi /etc/suricata/suricata.yaml
+vi /etc/suricata/suricata.yaml
 
-    :set nu
-
-
-    line 76   enabled: no
-
-    line 404 enabled: no
+:set nu
 
 
-    /enabled:yes (for search in vi)
+line 76   enabled: no
 
-    default-log-dir  ( change to location)
-
-    outputs
-
-    rule-files
+line 404 enabled: no
 
 
-    cd /etc/suricata
+/enabled:yes (for search in vi)
+
+default-log-dir  ( change to location)
+
+outputs
+
+rule-files
 
 
-    cd /var/lib/suricata/rules
-
-    suricata-update
-
-    usr/share/local/suricata/rules
-
-    /var/lib/suricata/rules
-
-    vi /etc/sysconfig/suricata
-
-    ```
-    # The following parameters are the most commonly needed to configure
-    # suricata. A full list can be seen by running /sbin/suricata --help
-    # -i <network interface device>
-    # --user <acct name>
-    # --group <group name>
-
-    # Add options to be passed to the daemon
-    OPTIONS="--af-packet=enp2s0 --user suricata "
-    ```
+cd /etc/suricata
 
 
-    sudo cat /proc/cpuinfo | egrep -e 'processor|physical id|core id' | xargs -l3
+cd /var/lib/suricata/rules
+
+suricata-update
+
+usr/share/local/suricata/rules
+
+/var/lib/suricata/rules
+
+vi /etc/sysconfig/suricata
+
+```
+# The following parameters are the most commonly needed to configure
+# suricata. A full list can be seen by running /sbin/suricata --help
+# -i <network interface device>
+# --user <acct name>
+# --group <group name>
+
+# Add options to be passed to the daemon
+OPTIONS="--af-packet=enp2s0 --user suricata "
+```
 
 
-
-    cd /usr/share/suricata/rules/  ( copy link from share site )
-
-    curl -L -O https://192.168.2.11:8009/suricata-5.0/emerging.rules.tar.gz
-
-    ls
+sudo cat /proc/cpuinfo | egrep -e 'processor|physical id|core id' | xargs -l3
 
 
 
+cd /usr/share/suricata/rules/  ( copy link from share site )
+
+curl -L -O https://192.168.2.11:8009/suricata-5.0/emerging.rules.tar.gz
+
+ls
 
 
-    cp /usr/share/suricata/classification.config  /etc/suricata/.
 
 
-    cp /usr/share/suricata/reference.config  /etc/suricata/.
+
+cp /usr/share/suricata/classification.config  /etc/suricata/.
+
+
+cp /usr/share/suricata/reference.config  /etc/suricata/.
+
+### zeek
+yum install zeek zeek-plugin-af_packet zeek-plugin-kafka
+mkdir /data/zeek
+#### config files
+* networks.cfg
+  * used to tell zeek the ip space using cidr notation
+```
+172.16.39.0/24
+```
+* zeekctl.cfg
+  * log-dir directory location
+  * ```lb_custom.InterfacePrefix=af_packet::``` not there by default and need to tell zeek to use af packet
+```
+LogDir = /data/zeek
+```
+
+``` /etc/zeek/node.cfg
+# Example ZeekControl node configuration.
+#
+# This example has a standalone node ready to go except for possibly changing
+# the sniffing interface.
+
+# This is a complete standalone configuration.  Most likely you will
+# only need to change the interface.
+#[zeek]
+#type=standalone
+#host=localhost
+#interface=eth0
+
+## Below is an example clustered configuration. If you use this,
+## remove the [zeek] node above.
+
+[logger]
+type=logger
+host=localhost
+
+[manager]
+type=manager
+host=localhost
+pin_cpus=3
+
+[proxy-1]
+type=proxy
+host=localhost
+
+[interface-enp2s0]
+type=worker
+host=localhost
+interface=enp2s0
+lb_method=custom
+lb_procs=2
+pin_cpu=1,2
+env_vars=fanout_id=99
+
+#[worker-]
+#type=worker
+#host=localhost
+#interface=eth0
+```
+* local zeek files
+  * cd /usr/share/zeek/site/
+  * vi local.zeek
+  * uncomment these lines
+    * heartbleed
+    * vlan-logging
+    * mac-logging
+  * add the following lines
+    * @load scripts/json
+    * @load scripts/af_packet
+    * @load scripts/kafka
+#### create above scripts
+* mkdir scripts/
+* afpacket.sh
+```
+redef AF_Packet::fanout_id = strcmp(getenv("fanout_id"),"") == 0 ? 0 : to_count(getenv("fanout_id"));
+```

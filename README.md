@@ -481,6 +481,7 @@ redef LogAscii::json_timestamps = JSON::TS_ISO8601;
 * zeekctl deploy
 
 ### FSF
+* yum install fsf
 * configuration updates
 * vi /opt/fsf/fsf-server/conf/config.py
 ```.py
@@ -501,7 +502,7 @@ SCANNER_CONFIG = { 'LOG_PATH' : '/data/fsf/logs',
                    'ACTIVE_LOGGING_MODULES' : ['scan_log', 'rockout'],
                    }
 
-SERVER_CONFIG = { 'IP_ADDRESS' : "172.16.2.102",
+SERVER_CONFIG = { 'IP_ADDRESS' : "172.16.30.102",
                   'PORT' : 5800 }
 ```
 
@@ -515,7 +516,7 @@ SERVER_CONFIG = { 'IP_ADDRESS' : "172.16.2.102",
 # 'IP Address' is a list. It can contain one element, or more.
 # If you put multiple FSF servers in, the one your client chooses will
 # be done at random. A rudimentary way to distribute tasks.
-SERVER_CONFIG = { 'IP_ADDRESS' : ['127.16.2.102',],
+SERVER_CONFIG = { 'IP_ADDRESS' : ['172.16.30.102',],
                   'PORT' : 5800 }
 
 # Full path to debug file if run with --suppress-report
@@ -523,3 +524,75 @@ CLIENT_CONFIG = { 'LOG_FILE' : '/tmp/client_dbg.log' }
 ```
 * mkdir /data/fsf/{logs,file}
 * chown -R fsf: /data/fsf/
+* firewall-cmd --add-port=5800/tcp --permanent
+* firewall-cmd --reload # no work no more
+* /opt/fsf/fsf-client/fsf_client.py --full ~/Bro-cheatsheet.pdf
+
+### kafka
+* yum install zookeeper kafka
+* vi /etc/zookeeper/zoo.cfg
+```.cfg
+# The number of milliseconds of each tick
+tickTime=2000
+# The number of ticks that the initial
+# synchronization phase can take
+initLimit=10
+# The number of ticks that can pass between
+# sending a request and getting an acknowledgement
+syncLimit=5
+# the directory where the snapshot is stored.
+# do not use /tmp for storage, /tmp here is just
+# example sakes.
+dataDir=/var/lib/zookeeper
+# the port at which the clients will connect
+clientPort=2181
+# the maximum number of client connections.
+# increase this if you need to handle more clients
+#maxClientCnxns=60
+#
+# Be sure to read the maintenance section of the
+# administrator guide before turning on autopurge.
+#
+# http://zookeeper.apache.org/doc/current/zookeeperAdmin.html#sc_maintenance
+#
+# The number of snapshots to retain in dataDir
+#autopurge.snapRetainCount=3
+# Purge task interval in hours
+# Set to "0" to disable auto purge feature
+#autopurge.purgeInterval=1
+```
+* sudo systemctl start zookeeper
+
+#### ZOOKEEPER MUST BE RUNNING BEFORE KAFKA
+
+* vi /etc/kafka/server.properties
+  * line 30: add sensor ip Address
+  * line 36: uncomment add sensor address
+  * line 60: log.dirs=/data/kafka
+  * line 103: log.retention.hours=168 # keep default, hours before it deletes
+  * line 107: log.retention.bytes=##### # keep default, size kept before deletes
+  * line 123: zookeeper.connect=localhost:2181 # keep default, where to get the seed list of zookeepers
+
+* chown -R kafka: /data/kafka
+
+* github rocknsm/rock-scripts/plugin/kafka.bro line 20 and down
+* vi /usr/share/zeek/site/scripts/kafka.zeek append below to file
+```
+# Enable bro logging to kafka for all logs
+event bro_init() &priority=-5
+{
+    for (stream_id in Log::active_streams)
+    {
+        if (|Kafka::logs_to_send| == 0 || stream_id in Kafka::logs_to_send)
+        {
+            local filter: Log::Filter = [
+                $name = fmt("kafka-%s", stream_id),
+                $writer = Log::WRITER_KAFKAWRITER,
+                $config = table(["stream_id"] = fmt("%s", stream_id))
+            ];
+
+            Log::add_filter(stream_id, filter);
+        }
+    }
+}
+```

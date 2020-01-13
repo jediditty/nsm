@@ -578,6 +578,12 @@ clientPort=2181
 * github rocknsm/rock-scripts/plugin/kafka.bro line 20 and down
 * vi /usr/share/zeek/site/scripts/kafka.zeek append below to file
 ```
+redef Kafka::topic_name = "zeek-raw";
+redef Kafka::json_timestamps = JSON::TS_ISO8601;
+redef Kafka::tag_json = F;
+redef Kafka::kafka_conf = table(
+     ["metadata.broker.list"] = "172.16.30.102:9092"
+);
 # Enable bro logging to kafka for all logs
 event bro_init() &priority=-5
 {
@@ -595,4 +601,22 @@ event bro_init() &priority=-5
         }
     }
 }
+
+```
+
+### Filebeat
+* yum install filebeat
+* cd /etc/filebeat/
+* vi filebeat.yaml
+  * line 17: enabled: true
+  * add paths to files to be read
+    * saved a copy in filebeats/filebeat.yml
+```.yml
+  paths:
+    - /data/suricata/eve.json
+    - /data/fsf/logs/rockout.log
+  fields:
+    student: student-1
+    anything: data
+    sensor: student-sensor
 ```

@@ -52,7 +52,7 @@ bootstrap.memory_lock: true
 #
 # Set the bind address to a specific IP (IPv4 or IPv6):
 #
-network.host: _local:ipv4_
+network.host: _enp2s0:ipv4_
 #
 # Set a custom port for HTTP:
 #

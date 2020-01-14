@@ -806,5 +806,932 @@ LimitMEMLOCK=infinity
 ```
 
 * chown -R elasticsearch: /etc/elasticsearch/
+* chown -R elasticsearch: /data/elasticsearch/
 * firewall-cmd --zone=public --add-port=9200/tcp --permanent
 * firewall-cmd --zone=public --add-port=9300/tcp --permanent
+
+### kibana
+* yum install kibana
+* vi /etc/kibana/kibana.yml
+* elasticsearch.hosts: ["http://localhost:9200"]
+```
+# Kibana is served by a back end server. This setting specifies the port to use.
+#server.port: 5601
+
+# Specifies the address to which the Kibana server will bind. IP addresses and host names are both valid values.
+# The default is 'localhost', which usually means remote machines will not be able to connect.
+# To allow connections from remote users, set this parameter to a non-loopback address.
+server.host: "172.16.30.102"
+
+# Enables you to specify a path to mount Kibana at if you are running behind a proxy.
+# Use the `server.rewriteBasePath` setting to tell Kibana if it should remove the basePath
+# from requests it receives, and to prevent a deprecation warning at startup.
+# This setting cannot end in a slash.
+#server.basePath: ""
+
+# Specifies whether Kibana should rewrite requests that are prefixed with
+# `server.basePath` or require that they are rewritten by your reverse proxy.
+# This setting was effectively always `false` before Kibana 6.3 and will
+# default to `true` starting in Kibana 7.0.
+#server.rewriteBasePath: false
+
+# The maximum payload size in bytes for incoming server requests.
+#server.maxPayloadBytes: 1048576
+
+# The Kibana server's name.  This is used for display purposes.
+#server.name: "your-hostname"
+
+# The URLs of the Elasticsearch instances to use for all your queries.
+elasticsearch.hosts: ["http://localhost:9200"]
+
+# When this setting's value is true Kibana uses the hostname specified in the server.host
+# setting. When the value of this setting is false, Kibana uses the hostname of the host
+# that connects to this Kibana instance.
+#elasticsearch.preserveHost: true
+
+# Kibana uses an index in Elasticsearch to store saved searches, visualizations and
+# dashboards. Kibana creates a new index if the index doesn't already exist.
+#kibana.index: ".kibana"
+
+# The default application to load.
+#kibana.defaultAppId: "home"
+
+# If your Elasticsearch is protected with basic authentication, these settings provide
+# the username and password that the Kibana server uses to perform maintenance on the Kibana
+# index at startup. Your Kibana users still need to authenticate with Elasticsearch, which
+# is proxied through the Kibana server.
+#elasticsearch.username: "kibana"
+#elasticsearch.password: "pass"
+
+# Enables SSL and paths to the PEM-format SSL certificate and SSL key files, respectively.
+# These settings enable SSL for outgoing requests from the Kibana server to the browser.
+#server.ssl.enabled: false
+#server.ssl.certificate: /path/to/your/server.crt
+#server.ssl.key: /path/to/your/server.key
+
+# Optional settings that provide the paths to the PEM-format SSL certificate and key files.
+# These files validate that your Elasticsearch backend uses the same key files.
+#elasticsearch.ssl.certificate: /path/to/your/client.crt
+#elasticsearch.ssl.key: /path/to/your/client.key
+
+# Optional setting that enables you to specify a path to the PEM file for the certificate
+# authority for your Elasticsearch instance.
+#elasticsearch.ssl.certificateAuthorities: [ "/path/to/your/CA.pem" ]
+
+# To disregard the validity of SSL certificates, change this setting's value to 'none'.
+#elasticsearch.ssl.verificationMode: full
+
+# Time in milliseconds to wait for Elasticsearch to respond to pings. Defaults to the value of
+# the elasticsearch.requestTimeout setting.
+#elasticsearch.pingTimeout: 1500
+
+# Time in milliseconds to wait for responses from the back end or Elasticsearch. This value
+# must be a positive integer.
+#elasticsearch.requestTimeout: 30000
+
+# List of Kibana client-side headers to send to Elasticsearch. To send *no* client-side
+# headers, set this value to [] (an empty list).
+#elasticsearch.requestHeadersWhitelist: [ authorization ]
+
+# Header names and values that are sent to Elasticsearch. Any custom headers cannot be overwritten
+# by client-side headers, regardless of the elasticsearch.requestHeadersWhitelist configuration.
+#elasticsearch.customHeaders: {}
+
+# Time in milliseconds for Elasticsearch to wait for responses from shards. Set to 0 to disable.
+#elasticsearch.shardTimeout: 30000
+
+# Time in milliseconds to wait for Elasticsearch at Kibana startup before retrying.
+#elasticsearch.startupTimeout: 5000
+
+# Logs queries sent to Elasticsearch. Requires logging.verbose set to true.
+#elasticsearch.logQueries: false
+
+# Specifies the path where Kibana creates the process ID file.
+#pid.file: /var/run/kibana.pid
+
+# Enables you specify a file where Kibana stores log output.
+#logging.dest: stdout
+
+# Set the value of this setting to true to suppress all logging output.
+#logging.silent: false
+
+# Set the value of this setting to true to suppress all logging output other than error messages.
+#logging.quiet: false
+
+# Set the value of this setting to true to log all events, including system usage information
+# and all requests.
+#logging.verbose: false
+
+# Set the interval in milliseconds to sample system and process performance
+# metrics. Minimum is 100ms. Defaults to 5000.
+#ops.interval: 5000
+
+# Specifies locale to be used for all localizable strings, dates and number formats.
+# Supported languages are the following: English - en , by default , Chinese - zh-CN .
+#i18n.locale: "en"
+
+```
+* systemctl start kibana
+* if elastic already made a cluster before seeds were up delete the elastic data folder: ```rm -rf /data/elasticsearch/*```
+
+### logstash
+* yum install logstash
+* vi /etc/logstash/jvm.properties: can change heap size
+* pipeline configurations
+  * /etc/logstash/conf.d/
+#### logstash pipelines
+* vi /etc/logstash/conf.d/100-input-zeek.conf
+```.conf
+input {
+  kafka {
+    topics => ["zeek-raw"]
+    add_field => { "[@metadata][stage]" => "zeek-raw" }
+    bootstrap_servers => "172.16.30.102:9092"
+    #can not have more consumers than partitions
+    #consumer_threads => 4
+    group_id => "bro_logstash"
+    codec => json
+    auto_offset_reset => "earliest"
+  }
+}
+```
+
+* vi /etc/logstash/conf.d/500-filter-zeek.conf
+```.conf
+filter{
+   if [@metadata][stage] == "zeek-raw" {
+      mutate {
+           add_field => { "processed_time" => "@timestamp"}
+      }
+      date { match => ["ts", "ISO8601" ] }
+      mutate {
+        add_field => {"orig_host" => "%{id.orig_h}"}
+        add_field => {"resp_host" => "%{id.resp_h}"}
+        add_field => {"src_ip" => "%{id.orig_h}"}
+        add_field => {"dst_ip" => "%{id.resp_h}"}
+        add_field => {"related_ips" => []}
+      }
+      mutate {
+        merge => {"related_ips" => "id.orig_h"}
+      }
+
+      mutate {
+        merge => {"related_ips" => "id.resp_h"}
+     }
+   }
+}
+```
+
+* vi /etc/logstash/conf.d/999-output-zeek.conf
+```.conf
+output {
+  if [@metadata][stage] == "zeek-raw" {
+    elasticsearch {
+      hosts => ["172.16.30.102:9200"]
+      index => "zeek-%{+YYYY.MM.dd}"
+      template => "/etc/logstash/bro-index-template.json"
+    }
+  }
+}
+```
+
+* check to see if logstash can run with these cahnges to make debuggin easier
+  * systemctl start logstash
+  * if errors: tail -f /var/log/logstash/logstash-plain.log
+
+* vi /etc/logstash/bro-index-template.json
+* place below in the kibana dev tools gui
+```
+PUT _template/zeek_index_mappings
+{
+    "order": 10,
+  "index_patterns": [
+    "zeek-*"
+  ],
+  "mappings": {
+    "properties": {
+      "@timestamp": {
+        "type": "date"
+      },
+      "@version": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "AA": {
+        "type": "boolean"
+      },
+      "RA": {
+        "type": "boolean"
+      },
+      "RD": {
+        "type": "boolean"
+      },
+      "TC": {
+        "type": "boolean"
+      },
+      "TTLs": {
+        "type": "float"
+      },
+      "Z": {
+        "type": "long"
+      },
+      "acks": {
+        "type": "long"
+      },
+      "active_dns_requests": {
+        "type": "long"
+      },
+      "active_files": {
+        "type": "long"
+      },
+      "active_icmp_conns": {
+        "type": "long"
+      },
+      "active_tcp_conns": {
+        "type": "long"
+      },
+      "active_timers": {
+        "type": "long"
+      },
+      "active_udp_conns": {
+        "type": "long"
+      },
+      "analyzers": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "answers": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "assigned_addr": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "auth_attempts": {
+        "type": "long"
+      },
+      "auth_success": {
+        "type": "boolean"
+      },
+      "bytes_recv": {
+        "type": "long"
+      },
+      "cipher_alg": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "client": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "client_addr": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "compression_alg": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "conn_state": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "conn_uids": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "depth": {
+        "type": "long"
+      },
+      "dns_requests": {
+        "type": "long"
+      },
+      "domain": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "duration": {
+        "type": "float"
+      },
+      "events_proc": {
+        "type": "long"
+      },
+      "events_queued": {
+        "type": "long"
+      },
+      "files": {
+        "type": "long"
+      },
+      "fuid": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "gaps": {
+        "type": "long"
+      },
+      "history": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "host": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "host_key": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "host_key_alg": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "icmp_conns": {
+        "type": "long"
+      },
+      "id": {
+        "properties": {
+          "orig_h": {
+            "type": "ip"
+          },
+          "orig_p": {
+            "type": "long"
+          },
+          "resp_h": {
+            "type": "ip"
+          },
+          "resp_p": {
+            "type": "long"
+          }
+        }
+      },
+      "is_orig": {
+        "type": "boolean"
+      },
+      "kex_alg": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "lease_time": {
+        "type": "float"
+      },
+      "level": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "local_orig": {
+        "type": "boolean"
+      },
+      "local_resp": {
+        "type": "boolean"
+      },
+      "location": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "mac": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "mac_alg": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "md5": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "mem": {
+        "type": "long"
+      },
+      "message": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "method": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "mime_type": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "missed_bytes": {
+        "type": "long"
+      },
+      "missing_bytes": {
+        "type": "long"
+      },
+      "msg_types": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "name": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "node": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "orig_bytes": {
+        "type": "long"
+      },
+      "orig_fuids": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "orig_ip_bytes": {
+        "type": "long"
+      },
+      "orig_l2_addr": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "orig_mime_types": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "orig_pkts": {
+        "type": "long"
+      },
+      "origin": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "overflow_bytes": {
+        "type": "long"
+      },
+      "peer": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "percent_lost": {
+        "type": "float"
+      },
+      "pkt_lag": {
+        "type": "float"
+      },
+      "pkts_dropped": {
+        "type": "long"
+      },
+      "pkts_link": {
+        "type": "long"
+      },
+      "pkts_proc": {
+        "type": "long"
+      },
+      "port_num": {
+        "type": "long"
+      },
+      "port_proto": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "proto": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "qclass": {
+        "type": "long"
+      },
+      "qclass_name": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "qtype": {
+        "type": "long"
+      },
+      "qtype_name": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "query": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "rcode": {
+        "type": "long"
+      },
+      "rcode_name": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "reassem_file_size": {
+        "type": "long"
+      },
+      "reassem_frag_size": {
+        "type": "long"
+      },
+      "reassem_tcp_size": {
+        "type": "long"
+      },
+      "reassem_unknown_size": {
+        "type": "long"
+      },
+      "referrer": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "rejected": {
+        "type": "boolean"
+      },
+      "request_body_len": {
+        "type": "long"
+      },
+      "resp_bytes": {
+        "type": "long"
+      },
+      "resp_fuids": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "resp_ip_bytes": {
+        "type": "long"
+      },
+      "resp_l2_addr": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "resp_mime_types": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "resp_pkts": {
+        "type": "long"
+      },
+      "response_body_len": {
+        "type": "long"
+      },
+      "rtt": {
+        "type": "float"
+      },
+      "rx_hosts": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "seen_bytes": {
+        "type": "long"
+      },
+      "server": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "server_addr": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "service": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "sha1": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "source": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "status_code": {
+        "type": "long"
+      },
+      "status_msg": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "tcp_conns": {
+        "type": "long"
+      },
+      "timedout": {
+        "type": "boolean"
+      },
+      "timers": {
+        "type": "long"
+      },
+      "total_bytes": {
+        "type": "long"
+      },
+      "trans_depth": {
+        "type": "long"
+      },
+      "trans_id": {
+        "type": "long"
+      },
+      "ts": {
+        "type": "date"
+      },
+      "ts_delta": {
+        "type": "float"
+      },
+      "tx_hosts": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "udp_conns": {
+        "type": "long"
+      },
+      "uid": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "uids": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "uri": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "user_agent": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "version": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      }
+    }
+  }
+}
+```

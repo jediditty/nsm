@@ -217,6 +217,12 @@ mkdir /home/srv
 mv /srv/* /home/srv/.
 mount -o bind /home/srv/ /srv/
 
+# start here
+* copy local-yum.repo to the sensor
+* mv repo file to /etc/ym.repos.d/
+* yum clean all
+* yum makecache fast
+
 ## INstalling Rocknsm
 ### stenographer
 sudo yum install stenographer
@@ -342,7 +348,7 @@ rule-files
 
 cd /etc/suricata
 
-
+mkdir /var/lib/suricata/rules
 cd /var/lib/suricata/rules
 
 suricata-update
@@ -384,18 +390,21 @@ cp /usr/share/suricata/classification.config  /etc/suricata/.
 
 cp /usr/share/suricata/reference.config  /etc/suricata/.
 
+chown -R suricata: /data/suricata
+
 ### zeek
 yum install zeek zeek-plugin-af_packet zeek-plugin-kafka
 mkdir /data/zeek
+chown -R zeek: /data/zeek/
 #### config files
 * networks.cfg
   * used to tell zeek the ip space using cidr notation
 ```
-172.16.39.0/24
+172.16.30.0/24
 ```
 * zeekctl.cfg
   * log-dir directory location
-  * ```lb_custom.InterfacePrefix=af_packet::``` not there by default and need to tell zeek to use af packet
+  * ```lb_custom.InterfacePrefix=af_packet::``` not there by default and need to tell zeek to use af packet, append to end
 ```
 LogDir = /data/zeek
 ```
@@ -457,7 +466,7 @@ env_vars=fanout_id=99
 
 #### create above scripts
 * mkdir scripts/
-* afpacket.zeek
+* af_packet.zeek
 ```
 redef AF_Packet::fanout_id = strcmp(getenv("fanout_id"),"") == 0 ? 0 : to_count(getenv("fanout_id"));
 ```
@@ -474,6 +483,12 @@ redef LogAscii::use_json=T;
 redef LogAscii::json_timestamps = JSON::TS_ISO8601;
 ```
 * ```zeekctl check #ensures that the scripts are good to go```
+
+* redo permissions
+  * chown -R zeek: /usr/share/zeek
+  * chown -R zeek: /etc/zeek/
+  * chown -R zeek: /var/spool/zeek/
+  * chown -R zeek: /data/zeek/
 
 #### zeek trouable Troubleshooting
 * zeekctl stop
@@ -607,7 +622,7 @@ event bro_init() &priority=-5
 ### Filebeat
 * yum install filebeat
 * cd /etc/filebeat/
-* vi filebeat.yaml
+* vi filebeat.yml
   * line 17: enabled: true
   * add paths to files to be read
     * saved a copy in filebeats/filebeat.yml
@@ -623,7 +638,7 @@ event bro_init() &priority=-5
 
 ### Elasticsearch
 * yum install elasticsearch
-* vi etc/elasticsearch/elasticsearch.yml
+* vi /etc/elasticsearch/elasticsearch.yml
 ```.yml
 # ======================== Elasticsearch Configuration =========================
 #
@@ -799,7 +814,7 @@ http.port: 9200
 
 * tell systemd that elastic can lock memory
 * mkdir /etc/systemd/system/elasticsearch.service.d
-* vi /etc/systemd/system.elasticsearch.service.d/overrie.conf
+* vi /etc/systemd/system/elasticsearch.service.d/override.conf
 ```.conf
 [Service]
 LimitMEMLOCK=infinity
@@ -989,7 +1004,7 @@ output {
     elasticsearch {
       hosts => ["172.16.30.102:9200"]
       index => "zeek-%{+YYYY.MM.dd}"
-      template => "/etc/logstash/bro-index-template.json"
+      #template => "/etc/logstash/bro-index-template.json"
     }
   }
 }
@@ -1074,5 +1089,5 @@ output {
 * clear pcap
   * rm -f /data/steno/thread0/packets/*
   * rm -f /data/steno/thread0/index/*
-* systemctl start elastcisearch
-* systemctl start suricata stenographer zookeeper kafka logstash fsf
+* systemctl start elasticsearch
+* systemctl start suricata stenographer zookeeper kafka logstash fsf zeek

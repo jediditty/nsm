@@ -138,9 +138,9 @@ setup.kibana:
 
 # Configure what output to use when sending the data collected by the beat.
 #---------------kafka-------------------------
-outputs.kafka:
-  hosts: [172.16.30.102:9092]
-  topic: '%{[fields.kafka_topic]}'
+output.kafka:
+  hosts: ["172.16.30.102:9092"]
+  topic: '%{[kafka_topic]}'
 #---------------end kafka --------------------
 #-------------------------- Elasticsearch output ------------------------------
 #output.elasticsearch:

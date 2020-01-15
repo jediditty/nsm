@@ -15,3 +15,4 @@ ll /data/zeek/current/
 ```curl 172.16.30.102:9200/_cat/indices```
 * elasticsearch works
 /usr/share/logstash/bin/logstash -f /etc/logstash/conf.d/100-input-zeek.conf -t
+* will check logstash conf files 

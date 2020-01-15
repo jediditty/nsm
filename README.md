@@ -1058,3 +1058,21 @@ output {
  }
 }
 ```
+
+### restart all
+* systemctl stop logstash suricata stenographer fsf kafka zookeeper elasticsearch
+* if you want to clear kafka
+  * rm -rf /var/lib/zookeeper/varsion-2/
+  * rm -rf /data/kafka/*
+* if you want to clear elasticsearch
+  * delete indices from within kibana, this will keep mappings, or if you want to clear everything see next
+  * rm -rf /data/elasticsearch/*
+* clear fsf
+  * rm -f /data/fsf/logs/rockout.log
+* clear suricata
+  * rm -f /data/suricata/eve.log
+* clear pcap
+  * rm -f /data/steno/thread0/packets/*
+  * rm -f /data/steno/thread0/index/*
+* systemctl start elastcisearch
+* systemctl start suricata stenographer zookeeper kafka logstash fsf

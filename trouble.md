@@ -3,6 +3,7 @@ no communicative services? check firewall port openings
 no route - firewalld
 conn refused - selinux
 
+ss -lnt
 
 ### no data in logstash or elasticsearch
 zeekctl status
@@ -17,3 +18,9 @@ ll /data/zeek/current/
 * elasticsearch works
 /usr/share/logstash/bin/logstash -f /etc/logstash/conf.d/100-input-zeek.conf -t
 * will check logstash conf files
+
+
+### read kafka in real time
+* stop Logstash
+* systemctl stop logstash
+* /usr/share/kafka/bin/kafka-console-consumer.sh --bootstrap-server 172.16.30.102:9092 --topic zeek-raw
